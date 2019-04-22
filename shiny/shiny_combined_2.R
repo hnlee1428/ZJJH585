@@ -61,13 +61,13 @@ story_df2<- story_df[!is.na(story_df$lng) & !is.na(story_df$lat),]
 
 
 story_total2 <- story_total2 %>%
-  mutate(Total_Sales = ifelse(Total_Sales_Dollars < 30000, "Less than 30000",
-                                        ifelse(Total_Sales_Dollars >= 30000 & Total_Sales_Dollars <= 50000, "Less than 50000",
-                                               ifelse(Total_Sales_Dollars >=50001 & Total_Sales_Dollars <= 10000, "Less than 10000",
-                                                      ifelse(Total_Sales_Dollars >= 10001 & Total_Sales_Dollars <= 30000, "Less than 30000",
+  mutate(Total_Sales = ifelse(Total_Sales_Dollars < 5000, "Less than 5000",
+                                        ifelse(Total_Sales_Dollars >= 5000 & Total_Sales_Dollars <= 10000, "5000 ~ 10,000",
+                                               ifelse(Total_Sales_Dollars > 10000 & Total_Sales_Dollars < 30000, "10,000 ~ 30,000",
+                                                       ifelse(Total_Sales_Dollars >= 30000 & Total_Sales_Dollars <= 60000, "30,000 ~ 60,000", NA)))))
 
-                                                                                                                          ifelse(Total_Sales_Dollars >= 30000 & Total_Sales_Dollars <= 60000, "Less than 60000", NA))))))
-###
+## Reorder the levels
+story_total2$Total_Sales <- factor(story_total2$Total_Sales, levels = c("Less than 5000", "5000 ~ 10,000", "10,000 ~ 30,000","30,000 ~ 60,000"))
 
 
 ##### Shiny starts here!
@@ -77,14 +77,12 @@ ui <- fluidPage(
   mainPanel(
     tabsetPanel(
       tabPanel("Liquor Sales Map",  sidebarPanel(
-        selectInput("city", label = "city", choices = levels(unique(story_df2$city)), selected = "AMES")
-        , selectInput("Total_Sales", "Total_Sales", choices = levels(as.factor(story_total2$Total_Sales)), selected = "Less than 30000")),
+        selectInput("city", label = "City", choices = levels(unique(story_df2$city)), selected = "AMES")
+        , selectInput("Total_Sales", "Total Sales in Dollars(2012-2015)", choices = levels(as.factor(story_total2$Total_Sales)), selected = "Less than 30000")),
         
         mainPanel(
           fluidRow( 
-            leafletOutput("map1"),
-            leafletOutput("map2")
-          )
+            leafletOutput("map"))
         )), 
       tabPanel("Liquor Sales Trend Analysis ",
                # Sidebar layout with input and output
@@ -139,22 +137,23 @@ server <- function(input, output) {
       filter(Total_Sales == input$Total_Sales)
   })
   
-  output$map1 <- renderLeaflet({
-    leaflet(data = story_df2_subset()) %>%
-      addTiles() %>%
-      addCircleMarkers(~ lng,
-                       ~ lat,
-                       popup = ~ as.character(name))
-  })
+  output$map <- renderLeaflet({
+    
+    validate(need(!is.na(input$city), "Zipcode must not be NA. Please enter a zip code"))
+    validate(need(!is.na(input$Total_Sales), "Distance must not be NA. Please enter a valid distance"))
+    
+    data <- story_total2 %>% filter(city == input$city, Total_Sales == input$Total_Sales)
   
-  output$map2 <- renderLeaflet({
-    leaflet(data = story_total2_subset()) %>%
+    leaflet(data = data) %>%
       addTiles() %>%
-      addCircleMarkers(~ lng,
-                       ~ lat, color = "indianred1",
-                       popup = ~ as.character(name))
+      addMarkers(~ lng,
+                 ~ lat,
+                 popup = ~ as.character(name))
   })
+    
   
+  
+
   output$storePlot <- renderPlotly({
       story_df_new1 %>% filter(name == input$Stores, year == input$Year) %>%
       mutate(month = factor(month)) %>%
